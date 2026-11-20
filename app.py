@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.cache import AuditReportCache
-from src.config import AppSettings, load_settings
+from src.config import AppSettings, get_detected_secret_names, load_settings
 from src.demo_data import build_demo_trap_report
 from src.models import (
     FactCheckReport,
@@ -1228,9 +1228,15 @@ def main() -> None:
                         "Please run OCR on scanned pages and re-upload."
                     )
                 elif settings.active_llm_provider == "none" and not (is_cached and not force_refresh):
+                    seen_keys = get_detected_secret_names()
+                    diag = (
+                        f"Detected Streamlit Secret key(s): `{', '.join(seen_keys)}` (expected `GEMINI_API_KEY`, `GOOGLE_API_KEY`, or `OPENAI_API_KEY`)."
+                        if seen_keys
+                        else "Streamlit Secrets is currently empty — open **Manage app → Settings → Secrets** on Streamlit Cloud and save `GEMINI_API_KEY = \"...\"`, OR paste your key in the **Gemini API Key** field in the left sidebar."
+                    )
                     st.error(
-                        "No LLM API key detected. Add `GEMINI_API_KEY` (or `OPENAI_API_KEY`) in the sidebar "
-                        "or Streamlit Secrets, or click **Preview Live Audit (Zero-Key Demo)**."
+                        "No LLM API key detected. "
+                        f"{diag} (Or click **Preview Live Audit (Zero-Key Demo)**.)"
                     )
                 else:
                     with st.status("Running TruthLayer Adversarial Verification Pipeline...", expanded=True) as status:

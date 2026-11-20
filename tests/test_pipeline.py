@@ -732,4 +732,16 @@ def test_llm_client_gemini_multi_model_fallback_on_404_or_503() -> None:
     assert client.model_name == "gemini-3.1-flash-lite"
 
 
+def test_config_lookup_supports_aliases_and_nested_toml_sections() -> None:
+    from src.config import GEMINI_KEY_ALIASES, _lookup_mapping_secret
+
+    assert _lookup_mapping_secret({"GOOGLE_API_KEY": "abc123"}, GEMINI_KEY_ALIASES) == "abc123"
+    assert (
+        _lookup_mapping_secret({"secrets": {"gemini_api_key": "nested-key"}}, GEMINI_KEY_ALIASES)
+        == "nested-key"
+    )
+    assert _lookup_mapping_secret({"OTHER_KEY": "nope"}, GEMINI_KEY_ALIASES) is None
+
+
+
 

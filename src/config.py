@@ -1,27 +1,50 @@
-"""Centralized configuration loader supporting environment variables and Streamlit secrets."""
+"""Centralized configuration loader supporting environment variables, project .env, and Streamlit secrets."""
 
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_PROJECT_ROOT / ".env")
 load_dotenv()
 
 
+def _lookup_mapping_secret(mapping: Mapping[str, Any], target_key: str) -> Optional[str]:
+    """Search a Streamlit secrets mapping (top-level and nested sections, case-insensitive)."""
+    target_lower = target_key.lower()
+    # 1. Direct / case-insensitive top-level match
+    for k, v in mapping.items():
+        if str(k).lower() == target_lower and not isinstance(v, Mapping):
+            val = str(v).strip()
+            if val:
+                return val
+    # 2. Nested TOML section match (e.g. [general] or [secrets])
+    for v in mapping.values():
+        if isinstance(v, Mapping):
+            found = _lookup_mapping_secret(v, target_key)
+            if found:
+                return found
+    return None
+
+
 def _get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
-    """Read a secret from environment variables first, then Streamlit secrets if available."""
-    val = os.getenv(key)
-    if val:
-        return val.strip()
+    """Read a secret from environment variables first, then Streamlit secrets (flat or nested)."""
+    for env_key in (key, key.lower()):
+        val = os.getenv(env_key)
+        if val and val.strip():
+            return val.strip()
     try:
         import streamlit as st
 
-        if key in st.secrets:
-            secret_val = st.secrets[key]
-            return str(secret_val).strip() if secret_val else default
+        found = _lookup_mapping_secret(st.secrets, key)
+        if found:
+            return found
     except Exception:
         pass
     return default
